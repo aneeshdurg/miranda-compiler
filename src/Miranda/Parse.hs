@@ -117,7 +117,14 @@ parensP = do char '('
              char ')'
              return e
 
---caseP
+listP :: Parser Exp
+listP = do char '['
+           maybeWSP
+           e <- rawExprP `sepEndBy` (maybeWSP >> char ',' >> maybeWSP)
+           maybeWSP
+           char ']'
+           return $ List e
+
 deffunP :: Parser Exp
 deffunP = try $ do Variable v <- varP
                    maybeSpaceP
@@ -161,11 +168,9 @@ reservedNamesP = letP
  
 miscP :: Parser Exp
 miscP = parensP
+     <|> listP
      <|> deffunP
      <|> varP
-
-testP :: Parser Exp
-testP = letP <|> letrecP <|> appfunP
 
 rawExprP :: Parser Exp
 rawExprP = reservedNamesP <|> appfunP <|> miscP
@@ -177,3 +182,6 @@ exprP :: Parser [Exp]
 exprP = many $ do e <- rawExprP
                   many emptyLine
                   return e
+
+--TODO
+--caseP

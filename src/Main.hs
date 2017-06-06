@@ -22,7 +22,9 @@ main = do a <- getArgs
                       Left err -> print err
                       Right exp -> case runExcept $ runStateT (compile exp) H.empty of
                                      Left err -> print err
-                                     Right (exp, env) -> print exp
+                                     Right (exp, env) -> do print exp
+                                                            putStr "\n\n"
+                                                            print env
 
 startRepl = do x <- readline "Miranda> "
                case x of 

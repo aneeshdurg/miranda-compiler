@@ -14,8 +14,11 @@ compileH :: [Exp] -> [Exp] -> ComState [Exp]
 compileH compiled [] = return . reverse $ compiled
 
 compileH c ((DefFun name (d:def)):rest) = 
-  do modify $ H.insert name $ makeLambda (d:def)
-     compileH c rest
+  do env <- get
+     if H.member name env
+       then throwError Err
+       else do modify $ H.insert name $ makeLambda (d:def)
+               compileH c rest
 
 makeLambda :: [([Pattern], Exp)] -> Exp
 makeLambda (d:def) = let (l, vs) = (lambdaSkeleton $ (length . fst) d) 
@@ -27,10 +30,12 @@ makeFatBar [] = ERROR
 makeFatBar (x:xs) = FatBar x $ makeFatBar xs
 
 lambdaSkeleton :: Int -> ((Exp -> Exp), [String])
+lambdaSkeleton 0 = (Lambda Void, [])
 lambdaSkeleton 1 = (Lambda (PVariable "_lambdaVar1"), ["_lambdaVar1"])
 lambdaSkeleton n = let (l, vs) = lambdaSkeleton (n-1)
                        name    = "_lambdaVar" ++ show n
                    in  ((\x -> Lambda (PVariable name) (l x)), name:vs)
+
 
 lambdaFlesh :: [Pattern] -> (Exp -> Exp)
 lambdaFlesh [] = Lambda Void
