@@ -7,18 +7,24 @@ import Control.Monad.State
 import Control.Monad.Except
 import Data.Maybe
 
-compile :: [Exp] -> ComState [Exp]
-compile = compileH []
+compile :: [Exp] -> ComState Exp
+compile = compileH 
 
-compileH :: [Exp] -> [Exp] -> ComState [Exp]
-compileH compiled [] = return . reverse $ compiled
+compileH :: [Exp] -> ComState Exp
+compileH [] = do env <- get
+                 case H.lookup "main" env of
+                   Just m -> return m
+                   _      -> throwError $ Err
+                 
 
-compileH c ((DefFun name (d:def)):rest) = 
+compileH ((DefFun name (d:def)):rest) = 
   do env <- get
      if H.member name env
        then throwError Err
        else do modify $ H.insert name $ makeLambda (d:def)
-               compileH c rest
+               compileH rest
+
+compileH _ = throwError $ Err
 
 makeLambda :: [([Pattern], Exp)] -> Exp
 makeLambda (d:def) = let (l, vs) = (lambdaSkeleton $ (length . fst) d) 

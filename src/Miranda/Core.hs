@@ -14,6 +14,7 @@ data PrimType = Number Int
 data Exp = Constant PrimType
          | Variable [Char]
          | List [Exp]
+         | Tuple Exp Exp
          | App Exp [Exp]
          | Lambda Pattern Exp
          | Let (Pattern, Exp) Exp

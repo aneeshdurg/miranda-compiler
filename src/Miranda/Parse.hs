@@ -8,13 +8,28 @@ import Text.Parsec.Prim hiding (State, try)
 import Control.Monad
 
 import qualified Data.HashSet as S
+import qualified Data.HashMap.Strict as H
+
+data ParserFlag = All | NoInfix | NoApp | None deriving (Eq, Show)
+
+type Parser = ParsecT String ParserFlag Identity
 
 reservedWords = S.fromList ["True", "False", "in", "let", "letrec"]
 
-type Parser = ParsecT String () Identity
+subExps = H.fromList [ (show All, rawExprP)
+                     , (show NoInfix, noInfixOpP)
+                     , (show NoApp, noAppExpP)
+                     , (show None, noLeftRecursiveOps) 
+                     ]
 
-parseWith :: Parser a -> String -> Either ParseError a
-parseWith p = parse p ""
+subExpsLookup x = case H.lookup (show x) subExps of
+                    Just e -> e
+                    _      -> rawExprP
+
+addFlag :: ParserFlag -> ParserFlag -> ParserFlag
+addFlag All x = x
+addFlag x All = x
+addFlag _ _   = None
 
 digitP :: Parser Char
 digitP = oneOf ['0'..'9']
@@ -108,6 +123,15 @@ patP = getCons <|> getC <|> getV <|> parensPat
                           many $ char ' '
                           patts <- patP `sepEndBy` (char ' ')
                           return $ Construct (c:v) patts
+tupleP :: Parser Exp
+tupleP = try $ do char '('
+                  maybeWSP
+                  e <- rawExprP
+                  maybeWSP >> char ',' >> maybeWSP
+                  e' <- rawExprP
+                  maybeWSP
+                  char ')'
+                  return $ Tuple e e'
 
 parensP :: Parser Exp
 parensP = do char '('
@@ -151,15 +175,50 @@ deffunP = try $ do Variable v <- varP
 
 
 appfunP :: Parser Exp
-appfunP = try $ do f <- noAppExpP
+appfunP = try $ do flag <- getState
+                   modifyState (addFlag NoApp)
+                   flag' <- getState 
+                   let subExpP = subExpsLookup flag'
+                   f <- subExpP 
                    spaceP
-                   x <- noAppExpP `sepEndBy` spaceP
+                   x <- subExpP `sepEndBy` spaceP
+                   putState flag
                    case x of
                      [] -> return f
                      _  -> return $ App f x
 
+infixOpP :: Parser Exp
+infixOpP = try $ do flag <- getState
+                    modifyState (addFlag NoInfix)
+                    flag' <- getState
+                    let subExpP = subExpsLookup flag'
+                    e <- subExpP          
+                    maybeWSP
+                    op <- getInfixOp          
+                    maybeWSP
+                    e' <- subExpP 
+                    putState flag
+                    return $ App (Variable op) [e, e']
+                   
+getInfixOp :: Parser String                   
+getInfixOp = oneCharBuiltIns <|> builtIns -- <|> TODO: User defined infix ops 
+             where oneCharBuiltIns = do c <- oneOf "+-/*<>"
+                                        return $ c:[]
+                   builtIns = string "=="
+                           <|> string "<="
+                           <|> string ">="
+                           <|> string "&&"
+                           <|> string "||"
+              
+
 noAppExpP :: Parser Exp
-noAppExpP = reservedNamesP <|> miscP
+noAppExpP = infixOpP <|> reservedNamesP <|> miscP      
+
+noInfixOpP :: Parser Exp
+noInfixOpP = reservedNamesP <|> appfunP <|> miscP
+
+noLeftRecursiveOps :: Parser Exp
+noLeftRecursiveOps = reservedNamesP <|> miscP
 
 reservedNamesP :: Parser Exp
 reservedNamesP = letP
@@ -167,13 +226,14 @@ reservedNamesP = letP
               <|> constantP
  
 miscP :: Parser Exp
-miscP = parensP
+miscP = tupleP
+     <|> parensP
      <|> listP
      <|> deffunP
      <|> varP
 
 rawExprP :: Parser Exp
-rawExprP = reservedNamesP <|> appfunP <|> miscP
+rawExprP = infixOpP <|> reservedNamesP <|> appfunP <|> miscP
 
 emptyLine :: Parser String
 emptyLine = maybeSpaceP >> char '\n' >> maybeSpaceP
