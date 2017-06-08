@@ -46,13 +46,17 @@ compileProg =
                                  then do y' <- comProgH y
                                          return $ FatBar x' y'
                                  else return x'
+    comProgH (If cond tb fb) = do cond' <- comProgH cond
+                                  tb'   <- comProgH tb
+                                  fb'   <- comProgH fb
+                                  return $ If cond' tb' fb'
     comProgH x = return x
 
 getProg :: ComState Exp
 getProg = do env <- get
              case H.lookup "main" env of
                Just m -> return m
-               _      -> throwError $ Err
+               _      -> throwError $ Err "No main function!"
 
 inLambda :: ComState Bool
 inLambda = do env <- get
@@ -77,11 +81,11 @@ compileDefs [] = return ()
 compileDefs ((DefFun name (d:def)):rest) = 
   do env <- get
      if H.member name env
-       then throwError Err
+       then throwError $ Err "Already defined function!"
        else do modify $ H.insert name $ makeLambda (d:def)
                compileDefs rest
 
-compileDefs _ = throwError $ Err
+compileDefs x = throwError $ Err $ "Cannot compile argument " ++ show x
 
 makeLambda :: [([Pattern], Exp)] -> Exp
 makeLambda (d:def) = let (l, vs) = (lambdaSkeleton $ (length . fst) d) 

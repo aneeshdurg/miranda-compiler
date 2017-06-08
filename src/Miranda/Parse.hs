@@ -200,24 +200,40 @@ deffunP :: Parser Exp
 deffunP = try $ do Variable v <- varP
                    maybeSpaceP
                    p <- many patP
-                   maybeWSP
-                   char '='
-                   maybeWSP
-                   e <- rawExprP
-                   --maybeWSP
-                   geq1line
-                   cases <-  (funGen v (length p)) `sepEndBy` geq1line
+                   
+                   e <- getAllConditions
+                   many geq1line
+                   cases <- (funGen v (length p)) `sepEndBy` geq1line
                    return $ DefFun v ((p, e):cases)
-          where funGen name len = 
+          where getAllConditions = do cases <- many defline
+                                      return $ guardToIf cases
+                defline = try $ do maybeWSP
+                                   char '='
+                                   maybeWSP
+                                   e <- rawExprP
+                                   c <- getCondition
+                                   return $ (e, c)
+                
+                guardToIf [] = ERROR
+                guardToIf ((e, Nothing):[]) = e
+                guardToIf ((e, Nothing):es) = e 
+                guardToIf ((e, Just c):[]) = If c e ERROR
+                guardToIf ((e, Just c):es) = If c e $ guardToIf es
+
+
+                getCondition = gotCond <|> do return Nothing
+                gotCond = try $ do maybeWSP
+                                   char ','
+                                   maybeWSP
+                                   cond <- rawExprP
+                                   return $ Just cond
+                funGen name len = 
                   try $ do string name
                            maybeSpaceP
                            p <- many patP
-                           maybeWSP 
-                           char '='
-                           maybeWSP
                            if (length p) /= len
                              then fail $ "Function "++name++" has variable number of arguments"
-                             else do e <- rawExprP
+                             else do e <- getAllConditions
                                      return (p, e)
 
 
@@ -242,7 +258,7 @@ infixOpP = try $ do flag <- getState
                     
                     e <- subExpP          
                     maybeWSP
-                    op <- getInfixOp          
+                    op <- try getInfixOp          
                     maybeWSP
 
                     putState flag
@@ -252,7 +268,7 @@ infixOpP = try $ do flag <- getState
                     return $ App (Variable op) [e, e']
                    
 getInfixOp :: Parser String                   
-getInfixOp = oneCharBuiltIns <|> builtIns -- <|> TODO: User defined infix ops 
+getInfixOp = builtIns <|> oneCharBuiltIns -- <|> TODO: User defined infix ops 
              where oneCharBuiltIns = do c <- oneOf "+-/*<>:"
                                         return $ c:[]
                    builtIns = string "=="
@@ -280,11 +296,10 @@ miscP :: Parser Exp
 miscP = tupleP
      <|> parensP
      <|> listP
-     <|> deffunP
      <|> varP
 
 rawExprP :: Parser Exp
-rawExprP = infixOpP <|> reservedNamesP <|> appfunP <|> miscP
+rawExprP = infixOpP <|> deffunP <|> reservedNamesP <|> appfunP <|> miscP
 
 emptyLine :: Parser String
 emptyLine = maybeSpaceP >> char '\n' >> maybeSpaceP

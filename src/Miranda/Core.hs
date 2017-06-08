@@ -20,18 +20,20 @@ data Exp = Constant PrimType
          | Let (Pattern, Exp) Exp
          | Letrec [(Pattern, Exp)] Exp
          | FatBar Exp Exp
-         | Case Exp [(Pattern, Exp)]
+         | If Exp Exp Exp
+-- ?     | Construct [Char] [(Exp] 
+-- ?     | TypeDef [Char] Int [Char]
          | DefFun [Char] [([Pattern], Exp)]
          | ERROR
          deriving Show
 
 data Pattern = PConstant PrimType
              | PVariable [Char]
-             | Construct [Char] [Pattern]
+             | PConstruct [Char] [Pattern]
              | Void
              deriving Show
              
-data Diagnostic = Err deriving Show 
+data Diagnostic = Err [Char] deriving Show 
 -- ### Evaluation monad
 
 -- `StateT` is the monad transformer version of `State`. You do not need to
