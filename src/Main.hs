@@ -21,14 +21,15 @@ runParse = \x y z -> runIdentity $ runParserT x All y z
 main = do a <- getArgs
           if length a == 0
             then startRepl
-            else do x <- readFile (a!!0)
-                    case runParse exprP (a!!0) x of
-                      Left err -> print err
-                      Right exp -> case runExcept $ runStateT (compile exp) H.empty of
-                                     Left err -> print err
-                                     Right (exp, env) -> do print exp
-                                                            putStr "\n\n"
-                                                            print env
+            else let name = head a 
+                 in  do x <- readFile name 
+                        case runParse exprP name x of
+                          Left err -> print err
+                          Right exp -> case runExcept $ runStateT (compile exp) H.empty of
+                                         Left err -> print err
+                                         Right (exp, env) -> do print exp
+                                                                putStr "\n\n"
+                                                                print env
 
 startRepl = do x <- readline "Miranda> "
                case x of 
