@@ -24,28 +24,34 @@ compileProg =
     comProgH (Tuple x y) = do x' <- comProgH x
                               y' <- comProgH y
                               return $ Tuple x' y'
+
     comProgH (App f xs) = do f' <- comProgH f
                              xs' <- mapM comProgH xs
                              case xs' of
                                [] -> return f'
                                _  -> return $ App f' xs'
+
     comProgH (Lambda x e) = do e' <- deltaLambda (comProgH e)
                                case x of
                                  Void -> return e'
                                  _    -> return $ Lambda x e'
+
     comProgH (Let (x, y) e) = do y' <- comProgH y
                                  e' <- comProgH e
                                  let l = Lambda x e'
                                  return $ App l [y']
+
     comProgH (Letrec xs e) = let l  = lambdaFlesh (map fst xs)
                              in  do e' <- comProgH e
                                     return $ App (l e') (map snd xs)
+
     comProgH (FatBar x y) = do x' <- comProgH x
                                inL <- inLambda
                                if inL
                                  then do y' <- comProgH y
                                          return $ FatBar x' y'
                                  else return x'
+
     comProgH (If cond tb fb) = do cond' <- comProgH cond
                                   tb'   <- comProgH tb
                                   fb'   <- comProgH fb

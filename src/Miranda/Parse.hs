@@ -206,7 +206,9 @@ deffunP = try $ do Variable v <- varP
                    cases <- (funGen v (length p)) `sepEndBy` geq1line
                    return $ DefFun v ((p, e):cases)
           where getAllConditions = do cases <- many defline
-                                      return $ guardToIf cases
+                                      if (length cases) == 0
+                                        then fail "Not a function"
+                                        else return $ guardToIf cases
                 defline = try $ do maybeWSP
                                    char '='
                                    maybeWSP

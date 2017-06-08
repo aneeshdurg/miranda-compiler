@@ -1,4 +1,8 @@
+{-# LANGUAGE DeriveGeneric #-}
 module Miranda.Core where
+
+import Generics.Deriving.Base (Generic)
+import Generics.Deriving.Show (GShow, gshow)
 
 import Data.HashMap.Strict as H (HashMap, insert, lookup, empty, fromList)
 import Prelude hiding (lookup)
@@ -9,7 +13,7 @@ import Data.Maybe
 data PrimType = Number Int 
               | Character Char
               | Boolean Bool
-              deriving Show
+              deriving (Show, Generic)
 
 data Exp = Constant PrimType
          | Variable [Char]
@@ -25,13 +29,32 @@ data Exp = Constant PrimType
 -- ?     | TypeDef [Char] Int [Char]
          | DefFun [Char] [([Pattern], Exp)]
          | ERROR
-         deriving Show
+         deriving (Generic)
+
+instance GShow Exp
+instance GShow PrimType
+instance GShow Pattern
+instance Show Exp where
+  show (Variable x) = x
+  show (List xs) = show xs
+  show (Tuple x y) = show (x,y)
+  show (App x y) = "(" ++ (show x)++" (applied to) "++(show y)++")"
+  show (Lambda p e) = "\\" ++ (show p) ++ " . " ++ show e 
+  show (Let (p, e) e') = let s_p = show p
+                             s_e = show e
+                             s_e' = show e'
+                         in  "let "++s_p++" = "++s_e++" in "++s_e'
+  show (Letrec ps e) = "let "++(show ps)++" in "++show e
+  show (FatBar x y) = (show x) ++ "[]" ++ show y
+  show (If c t f) = "If ("++(show c)++"){"++(show t)++"}else{"++(show f)++"}"
+  show (DefFun name def) = "DEFINE: "++name++" "++show def
+  show x = gshow x
 
 data Pattern = PConstant PrimType
              | PVariable [Char]
              | PConstruct [Char] [Pattern]
              | Void
-             deriving Show
+             deriving (Show, Generic)
              
 data Diagnostic = Err [Char] deriving Show 
 -- ### Evaluation monad
