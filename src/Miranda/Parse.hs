@@ -3,6 +3,8 @@ module Miranda.Parse where
 import Miranda.Core
 
 import Data.Functor.Identity
+import Data.Char (chr)
+import Numeric (readHex, readOct)
 import Text.ParserCombinators.Parsec hiding (Parser, State)
 import Text.Parsec.Prim hiding (State, try)
 import Control.Monad
@@ -60,19 +62,64 @@ idP = liftM2 (:) identFirst (many identRest)
 numP :: Parser Exp
 numP = Constant . Number . read <$> digitsP 
 
+getEscapedChar :: Char -> Parser Char
+getEscapedChar delim = 
+  try $ do c <- anyChar
+           if c == delim
+             then fail "Invalid character!"
+           else if c == '\\'
+             then 
+               do c' <- anyChar
+                  escapeChar c'
+             else return c
+        
+  where escapeChar c =
+          if c `elem` ['0'..'9']
+            then do c' <- oneOf ['0'..'9']
+                    c''<- oneOf ['0'..'9']
+                    return $ (unwrapRead . readOct) (c:c':c'':[])
+          else if c == 'x'
+            then do ds <- many hexP
+                    return $ (unwrapRead . readHex) (c:ds)
+          else case H.lookup c escChars of
+                 Just c' -> return c'
+                 _       -> return c
+        unwrapRead = chr . fst . head 
+        hexP = oneOf $ ['0'..'9'] ++ ['A'..'F'] ++ ['a'..'f']
+        
+        escChars = H.fromList [ ('a', '\a')
+                              , ('b', '\b')
+                              , ('f', '\f')
+                              , ('n', '\n')
+                              , ('r', '\r')
+                              , ('t', '\t')
+                              , ('v', '\v')
+                              , ('e', '\\')
+                              ]
+
 charP :: Parser Exp
 charP = do char '\''
-           c <- anyChar
-           char '\''
-           return $ Constant $ Character c
+           c <- many $ getEscapedChar '\''
+           if (length c) /= 1
+             then fail "Could not parse character!"
+             else do char '\''
+                     return $ Constant $ Character (head c)
 
 boolP :: Parser Exp
 boolP = Constant . Boolean . read <$> strBoolP
         where strBoolP = (string "True") <|> (string "False")
 
-           
+
+stringP :: Parser Exp
+stringP =
+  do char '"'
+     s <- many $ getEscapedChar '"'
+     let s' = map (Constant . Character) s
+     char '"'
+     return $ List s'
+
 constantP :: Parser Exp
-constantP = numP <|> charP <|> boolP
+constantP = numP <|> charP <|> boolP <|> stringP
 
 varP :: Parser Exp 
 varP = try $ do s <- idP
