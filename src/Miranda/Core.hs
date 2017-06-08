@@ -13,7 +13,12 @@ import Data.Maybe
 data PrimType = Number Int 
               | Character Char
               | Boolean Bool
-              deriving (Show, Generic)
+              deriving (Generic)
+
+instance Show PrimType where
+  show (Number n) = show n
+  show (Character c) = show c
+  show (Boolean b) = show b
 
 data Exp = Constant PrimType
          | Variable [Char]
@@ -35,6 +40,7 @@ instance GShow Exp
 instance GShow PrimType
 instance GShow Pattern
 instance Show Exp where
+  show (Constant x) = show x
   show (Variable x) = x
   show (List xs) = show xs
   show (Tuple x y) = show (x,y)
