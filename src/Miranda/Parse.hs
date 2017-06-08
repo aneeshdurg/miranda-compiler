@@ -169,7 +169,7 @@ patP = getCons <|> getC <|> getV <|> parensPat
                           Variable v <- varP
                           many $ char ' '
                           patts <- patP `sepEndBy` (char ' ')
-                          return $ Construct (c:v) patts
+                          return $ PConstruct (c:v) patts
 tupleP :: Parser Exp
 tupleP = try $ do char '('
                   maybeWSP
@@ -239,17 +239,21 @@ infixOpP = try $ do flag <- getState
                     modifyState (addFlag NoInfix)
                     flag' <- getState
                     let subExpP = subExpsLookup flag'
+                    
                     e <- subExpP          
                     maybeWSP
                     op <- getInfixOp          
                     maybeWSP
-                    e' <- subExpP 
+
                     putState flag
+                    let subExpP' = subExpsLookup flag
+                    
+                    e' <- subExpP'
                     return $ App (Variable op) [e, e']
                    
 getInfixOp :: Parser String                   
 getInfixOp = oneCharBuiltIns <|> builtIns -- <|> TODO: User defined infix ops 
-             where oneCharBuiltIns = do c <- oneOf "+-/*<>"
+             where oneCharBuiltIns = do c <- oneOf "+-/*<>:"
                                         return $ c:[]
                    builtIns = string "=="
                            <|> string "<="
