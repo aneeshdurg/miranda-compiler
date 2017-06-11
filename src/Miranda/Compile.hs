@@ -11,52 +11,86 @@ compile :: [Exp] -> ComState Exp
 compile xs = do compileDefs xs
                 compileProg
 
+fixM :: (Exp -> ComState Exp) -> Exp -> ComState Exp
+fixM f x = do x' <- f x
+              if x' == x
+                then return x
+                else fixM f x'
+
 compileProg :: ComState Exp
 compileProg = 
   do p <- getProg
-     comProgH p
-  where 
-    --comProgH x@(Variable _) = x --TODO: replace this
-                                --with lookups later
-    comProgH (List xs) = do xs' <- mapM comProgH xs
-                            return $ List xs
+     fixM comProgH p
 
-    comProgH (Tuple x y) = do x' <- comProgH x
-                              y' <- comProgH y
-                              return $ Tuple x' y'
+comProgH :: Exp -> ComState Exp
+comProgH (Variable x) = 
+  do env <- get
+     case H.lookup x env of 
+       Just exp -> return exp
+       _        -> return $ Variable x
+         --throwError $ undefinedVar x
 
-    comProgH (App f xs) = do f' <- comProgH f
-                             xs' <- mapM comProgH xs
-                             case xs' of
-                               [] -> return f'
-                               _  -> return $ App f' xs'
+comProgH (List xs) = do xs' <- mapM comProgH xs
+                        return $ List xs
 
-    comProgH (Lambda x e) = do e' <- deltaLambda (comProgH e)
-                               case x of
-                                 Void -> return e'
-                                 _    -> return $ Lambda x e'
+comProgH (Tuple x y) = do x' <- comProgH x
+                          y' <- comProgH y
+                          return $ Tuple x' y'
 
-    comProgH (Let (x, y) e) = do y' <- comProgH y
-                                 e' <- comProgH e
-                                 let l = Lambda x e'
-                                 return $ App l [y']
+comProgH (App f@(Variable _) xs) = do f' <- comProgH f
+                                      xs' <- mapM comProgH xs
+                                      case xs' of
+                                        [] -> return f'
+                                        _  -> return $ App f' xs'
+comProgH (App f@(Lambda _ _) xs) = do f' <- comProgH f
+                                      xs' <- mapM comProgH xs
+                                      case xs' of
+                                        [] -> return f'
+                                        _  -> return $ App f' xs'
+                                              --match f' xs'
 
-    comProgH (Letrec xs e) = let l  = lambdaFlesh (map fst xs)
-                             in  do e' <- comProgH e
-                                    return $ App (l e') (map snd xs)
+comProgH (Lambda x e) = do e' <- deltaLambda (comProgH e)
+                           case x of
+                             Void -> return e'
+                             _    -> return $ Lambda x e'
 
-    comProgH (FatBar x y) = do x' <- comProgH x
-                               inL <- inLambda
-                               if inL
-                                 then do y' <- comProgH y
-                                         return $ FatBar x' y'
-                                 else return x'
+comProgH (Let (x, y) e) = do y' <- comProgH y
+                             e' <- comProgH e
+                             let l = Lambda x e'
+                             return $ App l [y']
 
-    comProgH (If cond tb fb) = do cond' <- comProgH cond
-                                  tb'   <- comProgH tb
-                                  fb'   <- comProgH fb
-                                  return $ If cond' tb' fb'
-    comProgH x = return x
+comProgH (Letrec xs e) = let l  = lambdaFlesh (map fst xs)
+                         in  do e' <- comProgH e
+                                return $ App (l e') (map snd xs)
+
+comProgH (FatBar x y) = do x' <- comProgH x
+                           inL <- inLambda
+                           if inL || True
+                             then do y' <- comProgH y
+                                     return $ FatBar x' y'
+                             else return x'
+
+comProgH (If cond tb fb) = do cond' <- comProgH cond
+                              tb'   <- comProgH tb
+                              fb'   <- comProgH fb
+                              return $ If cond' tb' fb'
+
+comProgH x = return x
+  --throwError $ Err $ "I don't know how to compile '"++(show x)++"'!"
+
+match :: Exp -> [Exp] -> ComState Exp
+match (Lambda (PVariable v) e) (x:xs) = 
+  do env <- get
+     modify (H.insert v x) 
+     e' <- comProgH e
+     put env
+     match e' xs
+
+match (Lambda (PConstant c) e) (x:xs) = 
+  -- if c matches c, then e otherwise fail?
+  return $ Constant (Number 1) --placeholder
+match e [] = return $ e
+match _ xs = throwError $ Err "Too many arguments!"
 
 getProg :: ComState Exp
 getProg = do env <- get

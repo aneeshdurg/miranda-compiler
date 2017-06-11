@@ -17,19 +17,24 @@ import qualified Data.HashMap.Strict as H (empty)
 import System.Environment (getArgs)
 
 runParse = \x y z -> runIdentity $ runParserT x All y z
+runCompile = \x -> runExcept $ runStateT (compile x) compileState
+compileState = H.empty
 
-main = do a <- getArgs
-          if length a == 0
-            then startRepl
-            else let name = head a 
-                 in  do x <- readFile name 
-                        case runParse exprP name x of
-                          Left err -> print err
-                          Right exp -> case runExcept $ runStateT (compile exp) H.empty of
-                                         Left err -> print err
-                                         Right (exp, env) -> do print exp
-                                                                putStr "\n\n"
-                                                                print env
+main = 
+  do a <- getArgs
+     if length a == 0
+       then startRepl
+       else 
+         let name = head a 
+         in  do x <- readFile name 
+                case runParse exprP name x of
+                  Left err -> print err
+                  Right exp ->
+                    case runCompile exp of
+                      Left err -> print err
+                      Right (exp, env) -> do print exp
+                                             putStr "\n\n"
+                                             print env
 
 startRepl = do x <- readline "Miranda> "
                case x of 

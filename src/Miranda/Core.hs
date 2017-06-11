@@ -13,7 +13,7 @@ import Data.Maybe
 data PrimType = Number Int 
               | Character Char
               | Boolean Bool
-              deriving (Generic)
+              deriving (Generic, Eq)
 
 instance Show PrimType where
   show (Number n) = show n
@@ -34,7 +34,7 @@ data Exp = Constant PrimType
 -- ?     | TypeDef [Char] Int [Char]
          | DefFun [Char] [([Pattern], Exp)]
          | ERROR
-         deriving (Generic)
+         deriving (Generic, Eq)
 
 instance GShow Exp
 instance GShow PrimType
@@ -51,8 +51,8 @@ instance Show Exp where
                              s_e' = show e'
                          in  "let "++s_p++" = "++s_e++" in "++s_e'
   show (Letrec ps e) = "let "++(show ps)++" in "++show e
-  show (FatBar x y) = (show x) ++ "[]" ++ show y
-  show (If c t f) = "If ("++(show c)++"){"++(show t)++"}else{"++(show f)++"}"
+  show (FatBar x y) = (show x) ++ "[]\n" ++ show y
+  show (If c t f) = "If ("++(show c)++"){\n"++(show t)++"\n} else{\n"++(show f)++"\n}"
   show (DefFun name def) = "DEFINE: "++name++" "++show def
   show x = gshow x
 
@@ -60,15 +60,13 @@ data Pattern = PConstant PrimType
              | PVariable [Char]
              | PConstruct [Char] [Pattern]
              | Void
-             deriving (Show, Generic)
+             deriving (Show, Generic, Eq)
              
 data Diagnostic = Err [Char] deriving Show 
--- ### Evaluation monad
 
--- `StateT` is the monad transformer version of `State`. You do not need to
--- understand monad transformers! Simply read the following declaration as:
--- `EvalState` is a state encapsulating the evaluation result of type `a` and
--- the environment of type `Env`, except when a `Diagnostic` is thown along the
--- evaluation
+undefinedVar :: String -> Diagnostic
+undefinedVar x = Err $ "Variable "++x++" is undefined!"
+
+
 type ComState a = StateT (H.HashMap String Exp) (Except Diagnostic) a
 
