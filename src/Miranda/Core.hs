@@ -68,5 +68,22 @@ undefinedVar :: String -> Diagnostic
 undefinedVar x = Err $ "Variable "++x++" is undefined!"
 
 
-type ComState a = StateT (H.HashMap String Exp) (Except Diagnostic) a
+type DefMap = H.HashMap String Exp
+type ConMap = H.HashMap String (Int, [String])
+
+type ComState a = StateT (DefMap, ConMap) (Except Diagnostic) a
+
+modifyFst :: (DefMap -> DefMap) -> ComState ()
+modifyFst f =
+  do (env, c) <- get
+     put (f env, c)
+
+modifySnd f :: (ConMap -> ConMap) -> ComState ()
+modifySnd f = 
+  do (d, env) <- get
+     put (d, f env)
+
+put' :: Either (DefMap -> DefMap) (ConMap -> ConMap) -> ComState ()
+put' (Left d) = get >>= (\x -> put (d, snd x))
+put' (Right c) = get >>= (\x -> put (fst x, d))
 

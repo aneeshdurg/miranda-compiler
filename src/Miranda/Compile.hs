@@ -81,9 +81,9 @@ comProgH x = return x
 match :: Exp -> [Exp] -> ComState Exp
 match (Lambda (PVariable v) e) (x:xs) = 
   do env <- get
-     modify (H.insert v x) 
+     modifyFst (H.insert v x) 
      e' <- comProgH e
-     put env
+     put' $ Left env
      match e' xs
 
 match (Lambda (PConstant c) e) (x:xs) = 
@@ -92,14 +92,16 @@ match (Lambda (PConstant c) e) (x:xs) =
 match e [] = return $ e
 match _ xs = throwError $ Err "Too many arguments!"
 
+
+
 getProg :: ComState Exp
-getProg = do env <- get
+getProg = do (env, _) <- get
              case H.lookup "main" env of
                Just m -> return m
                _      -> throwError $ Err "No main function!"
 
 inLambda :: ComState Bool
-inLambda = do env <- get
+inLambda = do (env, _) <- get
               case H.lookup "__lambda_counter__" env of 
                 Just (Constant (Number 0)) -> return $ False
                 Just (Constant (Number n)) -> return $ True
@@ -110,8 +112,8 @@ deltaLambda e = do env <- get
                    let x = case H.lookup "__lambda_counter__" env of
                              Just (Constant (Number n)) -> n
                              _                          -> 0
-                   modify $ H.insert "__lambda_counter__" (Constant (Number (x+1)))
-                   put env
+                   modifyFst $ H.insert "__lambda_counter__" (Constant (Number (x+1)))
+                   put' $ Left env
                    e
 
 compileDefs :: [Exp] -> ComState ()
@@ -122,7 +124,7 @@ compileDefs ((DefFun name (d:def)):rest) =
   do env <- get
      if H.member name env
        then throwError $ Err "Already defined function!"
-       else do modify $ H.insert name $ makeLambda (d:def)
+       else do modifyFst $ H.insert name $ makeLambda (d:def)
                compileDefs rest
 
 compileDefs x = throwError $ Err $ "Cannot compile argument " ++ show x

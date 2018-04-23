@@ -18,7 +18,7 @@ import System.Environment (getArgs)
 
 runParse = \x y z -> runIdentity $ runParserT x All y z
 runCompile = \x -> runExcept $ runStateT (compile x) compileState
-compileState = H.empty
+compileState = (H.empty, H.empty)
 
 main = 
   do a <- getArgs
